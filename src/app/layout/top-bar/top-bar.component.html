@@ -1,0 +1,57 @@
+<header class="top-bar">
+    <div class="top-bar__left">
+        <div class="top-bar__logo">
+            <span class="top-bar__logo-icon">☁️</span>
+            <span class="top-bar__logo-text">CloudCanvas</span>
+            <span class="top-bar__logo-suffix">TF</span>
+        </div>
+        <div class="top-bar__project-name">
+            <input type="text" class="top-bar__name-input" [ngModel]="graphState.projectName()"
+                (ngModelChange)="graphState.projectName.set($event)" placeholder="Project Name"
+                aria-label="Project name" />
+        </div>
+        <span class="top-bar__save-status" [class.dirty]="graphState.isDirty()">
+            {{ saveStatus }}
+        </span>
+    </div>
+
+    <div class="top-bar__actions">
+        <button class="btn btn--ghost" (click)="newProject()" title="New Project" aria-label="New Project">
+            <span class="btn__icon">📄</span>
+            <span class="btn__label">New</span>
+        </button>
+        <button class="btn btn--ghost" (click)="importProject()" title="Import Project" aria-label="Import Project">
+            <span class="btn__icon">📂</span>
+            <span class="btn__label">Import</span>
+        </button>
+        <button class="btn btn--ghost" (click)="saveProject()" title="Save Project" aria-label="Save Project">
+            <span class="btn__icon">💾</span>
+            <span class="btn__label">Save</span>
+        </button>
+
+        <div class="top-bar__export-group">
+            <button class="btn btn--primary" (click)="toggleExportMenu()" title="Export" aria-label="Export"
+                aria-haspopup="menu" [attr.aria-expanded]="showExportMenu">
+                <span class="btn__icon">📦</span>
+                <span class="btn__label">Export</span>
+                <span class="btn__caret">▾</span>
+            </button>
+            @if (showExportMenu) {
+            <div class="export-menu" role="menu">
+                <button class="export-menu__item" (click)="exportTerraform()" role="menuitem">
+                    <span class="export-menu__icon">📋</span>
+                    Terraform ZIP
+                </button>
+                <button class="export-menu__item" (click)="exportProjectJson()" role="menuitem">
+                    <span class="export-menu__icon">📄</span>
+                    Project JSON
+                </button>
+                <button class="export-menu__item" (click)="exportBundle()" role="menuitem">
+                    <span class="export-menu__icon">📦</span>
+                    Full Bundle
+                </button>
+            </div>
+            }
+        </div>
+    </div>
+</header>

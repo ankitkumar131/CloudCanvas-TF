@@ -1,0 +1,88 @@
+# CloudCanvas-TF — Implementation Walkthrough
+
+## Overview
+Built a **full-featured visual GCP infrastructure designer** that generates Terraform code. The application is an Angular 21 SPA with a premium dark theme, signal-based reactivity, and zero paid dependencies.
+
+## Architecture
+
+```mermaid
+graph LR
+    A[Resource Palette] -->|Drag/Click| B[SVG Canvas]
+    B -->|Selection| C[Property Inspector]
+    B -->|Graph Signal| D[Validation Engine]
+    B -->|Graph Signal| E[Terraform Generator]
+    D -->|Diagnostics| F[Diagnostics Panel]
+    E -->|Generated Files| G[Code Preview]
+    E -->|Export| H[ZIP Download]
+```
+
+## What Was Built
+
+### Core Services (6 files)
+| File | Purpose |
+|------|---------|
+| [infra-graph.model.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/infra-graph.model.ts) | Core types: [InfraNode](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/infra-graph.model.ts#10-19), [InfraEdge](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/infra-graph.model.ts#22-28), [InfraGraph](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/infra-graph.model.ts#29-33), [Diagnostic](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/infra-graph.model.ts#34-42), [TerraformBlock](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/infra-graph.model.ts#43-50) |
+| [resource-plugin.model.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/resource-plugin.model.ts) | [ResourcePlugin](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/models/resource-plugin.model.ts#43-55) interface, JSON schema types |
+| [graph-state.service.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/core/services/graph-state.service.ts) | Signal-based central state (graph, selection, diagnostics, files) |
+| [graph-engine.service.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/graph-engine/graph-engine.service.ts) | DFS cycle detection + Kahn's topological sort |
+| [terraform-generator.service.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/terraform-engine/terraform-generator.service.ts) | Generates `providers.tf`, `main.tf`, `variables.tf`, `outputs.tf`, [README.md](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/README.md) |
+| [validation.service.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/validation/validation.service.ts) | 3-layer validation: schema + graph + policy |
+
+### 5 GCP Resource Plugins
+| Plugin | Resource | Category |
+|--------|----------|----------|
+| [compute-network.plugin.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/infra/plugins/compute-network.plugin.ts) | `google_compute_network` (VPC) | Network |
+| [compute-subnetwork.plugin.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/infra/plugins/compute-subnetwork.plugin.ts) | `google_compute_subnetwork` | Network |
+| [compute-instance.plugin.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/infra/plugins/compute-instance.plugin.ts) | `google_compute_instance` (VM) | Compute |
+| [storage-bucket.plugin.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/infra/plugins/storage-bucket.plugin.ts) | `google_storage_bucket` | Storage |
+| [container-cluster.plugin.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/infra/plugins/container-cluster.plugin.ts) | `google_container_cluster` (GKE) | Kubernetes |
+
+### 7 UI Components (21 files: [.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/main.ts) + [.html](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/index.html) + [.scss](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/styles.scss))
+- **Layout Shell** — CSS Grid 3-column layout with resizable panels
+- **Top Bar** — Logo, project name, save/import/export actions
+- **Palette** — Searchable categorized resource list with drag support
+- **Canvas** — SVG graph with pan/zoom, node drag, edge drawing
+- **Inspector** — Schema-driven dynamic form with toggle switches
+- **Code Preview** — Tabbed file viewer with HCL syntax highlighting
+- **Diagnostics** — Error/warning list with click-to-navigate
+
+### Storage & Export (2 files)
+- [storage.service.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/storage/storage.service.ts) — IndexedDB persistence
+- [export.service.ts](file:///c:/Users/Admin/Desktop/CloudCanvas-TF/src/app/storage/export.service.ts) — Pure JS ZIP generation (no dependencies)
+
+## Verification Results
+
+### Build
+- ✅ `ng build` — **0 errors**, bundle: 302 kB total (82 kB gzipped)
+- ✅ No deprecated APIs used — Angular 21, TypeScript 5.9, Google provider `~> 6.0`
+
+### Browser Testing
+
+````carousel
+![Initial state — clean dark theme with palette, canvas and panels](C:\Users\Admin\.gemini\antigravity\brain\9673f479-87db-43ac-b656-a046709e6257\initial_layout_1771673035450.png)
+<!-- slide -->
+![Resources on canvas with inspector and live Terraform code](C:\Users\Admin\.gemini\antigravity\brain\9673f479-87db-43ac-b656-a046709e6257\final_state_1771673054954.png)
+<!-- slide -->
+![Full working app with VPC + VM, syntax highlighting, and diagnostics](C:\Users\Admin\.gemini\antigravity\brain\9673f479-87db-43ac-b656-a046709e6257\.system_generated\click_feedback\click_feedback_1771673422266.png)
+````
+
+### Features Verified
+| Feature | Status | Details |
+|---------|--------|---------|
+| Layout renders | ✅ | 5-panel layout: top bar, palette, canvas, inspector, bottom panels |
+| Resource palette | ✅ | 4 categories, 5 resources, search works |
+| Canvas drag & drop | ✅ | Nodes appear at click position |
+| Node selection | ✅ | Click selects, inspector populates |
+| Property editing | ✅ | Forms update graph state, code regenerates |
+| Terraform generation | ✅ | Valid HCL in main.tf, providers.tf, variables.tf, outputs.tf |
+| Syntax highlighting | ✅ | Keywords, strings, attributes, comments colored |
+| Validation | ✅ | Required field errors, missing connection warnings |
+| Export dropdown | ✅ | Terraform ZIP, Project JSON, Full Bundle options |
+
+## Running the App
+
+```bash
+cd c:\Users\Admin\Desktop\CloudCanvas-TF
+npm start          # serves at http://localhost:4200
+npm run build      # production build → dist/cloudcanvas-tf/
+```

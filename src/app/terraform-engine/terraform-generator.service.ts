@@ -1,0 +1,233 @@
+import { Injectable } from '@angular/core';
+import {
+    InfraGraph, InfraNode, TerraformBlock, GeneratedFile, TerraformValue, TerraformReference, TerraformNestedBlock,
+} from '../core/models/infra-graph.model';
+import { GeneratorContext } from '../core/models/resource-plugin.model';
+import { PluginRegistryService } from '../infra/plugin-registry.service';
+import { GraphEngineService } from '../graph-engine/graph-engine.service';
+
+@Injectable({ providedIn: 'root' })
+export class TerraformGeneratorService {
+    constructor(
+        private pluginRegistry: PluginRegistryService,
+        private graphEngine: GraphEngineService
+    ) { }
+
+    generate(graph: InfraGraph, projectId: string = 'my-gcp-project', region: string = 'us-central1'): GeneratedFile[] {
+        const nodeMap = new Map<string, InfraNode>();
+        for (const node of graph.nodes) {
+            nodeMap.set(node.id, node);
+        }
+
+        const ctx: GeneratorContext = {
+            graph,
+            nodeMap,
+            getNodeReference: (nodeId: string, attribute: string): string => {
+                const n = nodeMap.get(nodeId);
+                if (!n) return `"unknown_ref"`;
+                return `\${${n.kind}.${n.name}.${attribute}}`;
+            },
+        };
+
+        const sortResult = this.graphEngine.topologicalSort(graph);
+        const orderedNodes = sortResult.hasCycle ? graph.nodes : sortResult.order;
+
+        const allBlocks: TerraformBlock[] = [];
+        for (const node of orderedNodes) {
+            const plugin = this.pluginRegistry.getPlugin(node.kind);
+            if (plugin) {
+                const blocks = plugin.toTerraform(node, ctx);
+                allBlocks.push(...blocks);
+            }
+        }
+
+        const files: GeneratedFile[] = [];
+        files.push(this.generateProvidersFile(projectId, region));
+        files.push(this.generateMainFile(allBlocks));
+        files.push(this.generateVariablesFile(projectId, region));
+        files.push(this.generateOutputsFile(allBlocks));
+        files.push(this.generateReadme(graph));
+        return files;
+    }
+
+    private generateProvidersFile(projectId: string, region: string): GeneratedFile {
+        const content = `terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+`;
+        return { filename: 'providers.tf', content };
+    }
+
+    private generateMainFile(blocks: TerraformBlock[]): GeneratedFile {
+        const resourceBlocks = blocks.filter((b) => b.blockType === 'resource');
+        if (resourceBlocks.length === 0) {
+            return {
+                filename: 'main.tf',
+                content: '# No resources configured yet.\n# Drag resources from the palette and configure them.\n',
+            };
+        }
+        const lines: string[] = [
+            '# ============================================================================',
+            '# CloudCanvas-TF — Auto-generated Terraform Configuration',
+            '# ============================================================================',
+            '',
+        ];
+        for (const block of resourceBlocks) {
+            lines.push(this.serializeBlock(block));
+            lines.push('');
+        }
+        return { filename: 'main.tf', content: lines.join('\n') };
+    }
+
+    private generateVariablesFile(projectId: string, region: string): GeneratedFile {
+        const content = `variable "project_id" {
+  description = "The GCP project ID"
+  type        = string
+  default     = "${projectId}"
+}
+
+variable "region" {
+  description = "The GCP region for resources"
+  type        = string
+  default     = "${region}"
+}
+`;
+        return { filename: 'variables.tf', content };
+    }
+
+    private generateOutputsFile(blocks: TerraformBlock[]): GeneratedFile {
+        const resourceBlocks = blocks.filter((b) => b.blockType === 'resource');
+        if (resourceBlocks.length === 0) {
+            return { filename: 'outputs.tf', content: '# No outputs yet.\n' };
+        }
+        const lines: string[] = [];
+        for (const block of resourceBlocks) {
+            const resourceType = block.resourceType ?? block.name;
+            const cleanName = block.name.replace(/-/g, '_');
+            lines.push(`output "${cleanName}_id" {`);
+            lines.push(`  description = "ID of ${resourceType}.${block.name}"`);
+            lines.push(`  value       = ${resourceType}.${block.name}.id`);
+            lines.push(`}`);
+            lines.push('');
+        }
+        return { filename: 'outputs.tf', content: lines.join('\n') };
+    }
+
+    private generateReadme(graph: InfraGraph): GeneratedFile {
+        const lines: string[] = [
+            '# CloudCanvas-TF Generated Infrastructure',
+            '',
+            '> Auto-generated by [CloudCanvas-TF](https://github.com/cloudcanvas-tf)',
+            '',
+            '## Resources',
+            '',
+        ];
+        if (graph.nodes.length === 0) {
+            lines.push('No resources configured.');
+        } else {
+            for (const node of graph.nodes) {
+                lines.push(`- **${node.name}** (\`${node.kind}\`)`);
+            }
+        }
+        lines.push('');
+        lines.push('## Quick Start');
+        lines.push('');
+        lines.push('```bash');
+        lines.push('terraform init');
+        lines.push('terraform plan');
+        lines.push('terraform apply');
+        lines.push('```');
+        lines.push('');
+        return { filename: 'README.generated.md', content: lines.join('\n') };
+    }
+
+    private serializeBlock(block: TerraformBlock): string {
+        const lines: string[] = [];
+        const resourceType = block.resourceType ?? block.name;
+        lines.push(`resource "${resourceType}" "${block.name}" {`);
+
+        const sortedKeys = Object.keys(block.attributes).sort();
+        for (const key of sortedKeys) {
+            const val = block.attributes[key];
+            lines.push(`  ${key} = ${this.serializeValue(val)}`);
+        }
+
+        if (block.nestedBlocks) {
+            for (const nested of block.nestedBlocks) {
+                lines.push('');
+                lines.push(...this.serializeNestedBlock(nested));
+            }
+        }
+
+        lines.push('}');
+        return lines.join('\n');
+    }
+
+    private serializeNestedBlock(nested: TerraformNestedBlock): string[] {
+        const lines: string[] = [];
+        if (nested.type === 'boot_disk') {
+            lines.push('  boot_disk {');
+            lines.push('    initialize_params {');
+            if (nested.attributes['initialize_params_image']) {
+                lines.push(`      image = "${nested.attributes['initialize_params_image']}"`);
+            }
+            if (nested.attributes['initialize_params_size']) {
+                lines.push(`      size  = ${nested.attributes['initialize_params_size']}`);
+            }
+            if (nested.attributes['initialize_params_type']) {
+                lines.push(`      type  = "${nested.attributes['initialize_params_type']}"`);
+            }
+            lines.push('    }');
+            lines.push('  }');
+        } else if (nested.type === 'network_interface') {
+            lines.push('  network_interface {');
+            const sortedKeys = Object.keys(nested.attributes).sort();
+            for (const key of sortedKeys) {
+                lines.push(`    ${key} = ${this.serializeValue(nested.attributes[key])}`);
+            }
+            if (sortedKeys.length === 0) {
+                lines.push('    network = "default"');
+            }
+            lines.push('  }');
+        } else if (nested.type === 'versioning') {
+            lines.push('  versioning {');
+            lines.push(`    enabled = ${nested.attributes['enabled']}`);
+            lines.push('  }');
+        } else {
+            lines.push(`  ${nested.type} {`);
+            const sortedKeys = Object.keys(nested.attributes).sort();
+            for (const key of sortedKeys) {
+                lines.push(`    ${key} = ${this.serializeValue(nested.attributes[key])}`);
+            }
+            lines.push('  }');
+        }
+        return lines;
+    }
+
+    private serializeValue(val: TerraformValue): string {
+        if (val === null || val === undefined) return '""';
+        if (typeof val === 'string') return `"${val}"`;
+        if (typeof val === 'number') return String(val);
+        if (typeof val === 'boolean') return String(val);
+        if (Array.isArray(val)) {
+            const items = val.map((v) => `"${v}"`).join(', ');
+            return `[${items}]`;
+        }
+        if (typeof val === 'object' && 'ref' in val) {
+            return (val as TerraformReference).ref;
+        }
+        return `"${String(val)}"`;
+    }
+}

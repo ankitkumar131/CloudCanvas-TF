@@ -1,0 +1,7 @@
+{
+  "projectId": "a6278bfc-83f8-4b8e-99ad-74d552dd01dd",
+  "createdAt": 1771671024039,
+  "version": "1.0",
+  "startupCommands": ["node \"C:\\Users\\Admin\\Desktop\\CloudCanvas-TF\\node_modules\\@angular\\cli\\bin\\ng.js\" serve --host 0.0.0.0 --port 4200"],
+  "templateId": "any"
+}

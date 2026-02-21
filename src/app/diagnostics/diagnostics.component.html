@@ -1,0 +1,38 @@
+<div class="diagnostics">
+    <div class="diagnostics__header">
+        <h3 class="diagnostics__title">Diagnostics</h3>
+        <div class="diagnostics__badges">
+            @if (errorCount() > 0) {
+            <span class="diagnostics__badge diagnostics__badge--error">{{ errorCount() }} errors</span>
+            }
+            @if (warningCount() > 0) {
+            <span class="diagnostics__badge diagnostics__badge--warning">{{ warningCount() }} warnings</span>
+            }
+            @if (errorCount() === 0 && warningCount() === 0 && diagnostics().length > 0) {
+            <span class="diagnostics__badge diagnostics__badge--ok">✓ All good</span>
+            }
+        </div>
+    </div>
+
+    <div class="diagnostics__list">
+        @for (diag of sortedDiagnostics(); track diag.code + (diag.nodeId ?? '') + (diag.field ?? '')) {
+        <button class="diagnostics__item" [class]="'diagnostics__item--' + diag.severity"
+            [class.clickable]="!!diag.nodeId" (click)="selectNode(diag)" [title]="diag.remediation ?? ''">
+            <span class="diagnostics__item-icon">{{ getSeverityIcon(diag.severity) }}</span>
+            <div class="diagnostics__item-content">
+                <span class="diagnostics__item-message">{{ diag.message }}</span>
+                @if (diag.remediation) {
+                <span class="diagnostics__item-fix">💡 {{ diag.remediation }}</span>
+                }
+            </div>
+            <span class="diagnostics__item-code">{{ diag.code }}</span>
+        </button>
+        }
+
+        @if (diagnostics().length === 0) {
+        <div class="diagnostics__empty">
+            <p>No diagnostics — add resources to see validation results.</p>
+        </div>
+        }
+    </div>
+</div>

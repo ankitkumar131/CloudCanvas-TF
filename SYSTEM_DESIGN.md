@@ -233,7 +233,7 @@ Users must keep work between sessions and hand off Terraform outputs to CI/CD.
 ## 7) Technical Architecture (Detailed)
 
 ## 7.1 Frontend Technology Stack
-- Angular 17+ (standalone-friendly architecture).
+- Angular 21 (standalone-first, signals-based architecture).
 - TypeScript strict mode.
 - Angular Signals for app state.
 - RxJS for async pipelines/worker orchestration.

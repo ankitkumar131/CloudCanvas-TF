@@ -1,0 +1,173 @@
+.code-preview {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.code-preview__tabs {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border-color);
+    gap: 8px;
+}
+
+.code-preview__tab-list {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+
+    &::-webkit-scrollbar {
+        height: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 2px;
+    }
+}
+
+.code-preview__tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+
+    &:hover {
+        color: var(--text-secondary);
+        background: var(--bg-hover);
+    }
+
+    &.active {
+        color: var(--accent-primary);
+        border-bottom-color: var(--accent-primary);
+    }
+}
+
+.code-preview__tab-icon {
+    font-size: 11px;
+}
+
+.code-preview__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.code-preview__feedback {
+    font-size: 11px;
+    color: var(--color-success, #22c55e);
+    animation: fadeIn 0.2s;
+}
+
+.code-preview__copy {
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+
+    &:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+    }
+}
+
+.code-preview__content {
+    flex: 1;
+    overflow: auto;
+    padding: 12px 16px;
+
+    &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 3px;
+    }
+}
+
+.code-preview__code {
+    margin: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre;
+    tab-size: 2;
+}
+
+// Syntax highlighting
+:host ::ng-deep {
+    .hl-keyword {
+        color: #c792ea;
+        font-weight: 600;
+    }
+
+    .hl-string {
+        color: #c3e88d;
+    }
+
+    .hl-bool {
+        color: #f78c6c;
+        font-weight: 500;
+    }
+
+    .hl-number {
+        color: #f78c6c;
+    }
+
+    .hl-comment {
+        color: #546e7a;
+        font-style: italic;
+    }
+
+    .hl-ref {
+        color: #82aaff;
+    }
+
+    .hl-attr {
+        color: #ffcb6b;
+    }
+}
+
+.code-preview__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+
+    p {
+        font-size: 13px;
+        color: var(--text-tertiary);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

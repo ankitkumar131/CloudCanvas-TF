@@ -1,0 +1,49 @@
+<div class="palette">
+    <div class="palette__header">
+        <h2 class="palette__title">Resources</h2>
+        <span class="palette__badge">{{ categories().length }} categories</span>
+    </div>
+
+    <div class="palette__search">
+        <span class="palette__search-icon">🔍</span>
+        <input type="text" class="palette__search-input" placeholder="Search resources..." [ngModel]="searchTerm()"
+            (ngModelChange)="updateSearch($event)" aria-label="Search resources" />
+    </div>
+
+    <div class="palette__categories">
+        @for (cat of categories(); track cat.name) {
+        <div class="palette__category">
+            <button class="palette__category-header" (click)="toggleCategory(cat.name)"
+                [attr.aria-expanded]="isCategoryExpanded(cat.name)">
+                <span class="palette__category-arrow" [class.expanded]="isCategoryExpanded(cat.name)">▶</span>
+                <span class="palette__category-name">{{ cat.name }}</span>
+                <span class="palette__category-count">{{ cat.plugins.length }}</span>
+            </button>
+
+            @if (isCategoryExpanded(cat.name)) {
+            <div class="palette__items">
+                @for (plugin of cat.plugins; track plugin.kind) {
+                <div class="palette__item" draggable="true" (dragstart)="onDragStart($event, plugin)"
+                    (click)="addToCanvas(plugin)" [title]="plugin.description" role="button" tabindex="0"
+                    (keydown.enter)="addToCanvas(plugin)">
+                    <span class="palette__item-icon">{{ plugin.icon }}</span>
+                    <div class="palette__item-info">
+                        <span class="palette__item-name">{{ plugin.displayName }}</span>
+                        <span class="palette__item-kind">{{ plugin.kind }}</span>
+                    </div>
+                    <span class="palette__item-add">+</span>
+                </div>
+                }
+            </div>
+            }
+        </div>
+        }
+    </div>
+
+    @if (categories().length === 0) {
+    <div class="palette__empty">
+        <span class="palette__empty-icon">🔍</span>
+        <p>No resources match your search.</p>
+    </div>
+    }
+</div>
