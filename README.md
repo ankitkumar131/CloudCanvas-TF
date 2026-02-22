@@ -4,7 +4,7 @@ Angular workspace scaffold for the CloudCanvas-TF visual GCP-to-Terraform projec
 
 ## Required toolchain
 - Angular CLI: 21.1.4
-- Node.js: 24.13.1
+- Node.js: >=24.13.1
 
 ## Quick start
 ```bash
