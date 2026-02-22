@@ -226,7 +226,17 @@ variable "region" {
             return `[${items}]`;
         }
         if (typeof val === 'object' && 'ref' in val) {
-            return (val as TerraformReference).ref;
+            // Handle Terraform references - remove ${} wrapper for direct references
+            const ref = (val as TerraformReference).ref;
+            // If it's already a direct reference (no ${}), return as-is
+            if (!ref.startsWith('${') && !ref.endsWith('}')) {
+                return ref;
+            }
+            // If it has ${} wrapper, remove it for direct assignments
+            if (ref.startsWith('${') && ref.endsWith('}')) {
+                return ref.slice(2, -1);
+            }
+            return ref;
         }
         return `"${String(val)}"`;
     }

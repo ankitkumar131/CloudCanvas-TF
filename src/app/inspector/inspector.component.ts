@@ -1,4 +1,4 @@
-import { Component, inject, computed, effect } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GraphStateService } from '../core/services/graph-state.service';
 import { PluginRegistryService } from '../infra/plugin-registry.service';
@@ -9,6 +9,7 @@ interface FieldEntry {
     config: JsonSchemaProperty;
     value: unknown;
     group: string;
+    validationError?: string;
 }
 
 @Component({
@@ -31,11 +32,14 @@ export class InspectorComponent {
         if (!plugin) return [];
         const entries: FieldEntry[] = [];
         for (const [key, config] of Object.entries(plugin.schema.properties)) {
+            const value = node.properties[key] ?? config.default ?? '';
+            const validationError = this.validateField(key, value, config);
             entries.push({
                 key,
                 config,
-                value: node.properties[key] ?? config.default ?? '',
+                value,
                 group: config.group ?? 'General',
+                validationError,
             });
         }
         return entries;
@@ -95,8 +99,56 @@ export class InspectorComponent {
     }
 
     getFieldError(key: string): string | null {
-        return this.nodeDiagnostics().find(
+        // Check for validation errors from the service
+        const serviceError = this.nodeDiagnostics().find(
             (d) => d.field === key && d.severity === 'error'
         )?.message ?? null;
+        if (serviceError) return serviceError;
+
+        // Check for field-level validation errors
+        const field = this.fields().find(f => f.key === key);
+        return field?.validationError ?? null;
+    }
+
+    private validateField(key: string, value: unknown, config: JsonSchemaProperty): string | undefined {
+        // Required field validation
+        if (config.required) {
+            if (value === undefined || value === null || value === '') {
+                return `${config.label} is required`;
+            }
+        }
+
+        // Type-specific validation
+        if (config.type === 'number' && value !== undefined && value !== '') {
+            const numVal = Number(value);
+            if (isNaN(numVal)) {
+                return `${config.label} must be a valid number`;
+            }
+            // Add specific validations based on field name
+            if (key.includes('size') && numVal < 10) {
+                return `${config.label} must be at least 10`;
+            }
+            if (key.includes('size') && numVal > 65536) {
+                return `${config.label} cannot exceed 65536`;
+            }
+        }
+
+        // String validation
+        if (config.type === 'string' && typeof value === 'string') {
+            // Zone format validation
+            if (key === 'zone' && value && !/^[a-z]+-[a-z]+\d+-[a-z]$/.test(value)) {
+                return 'Zone must be in format: region-zone (e.g., us-central1-a)';
+            }
+            // Name validation (Terraform resource name rules)
+            if (key === 'name' && value && !/^[a-zA-Z][a-zA-Z0-9-_]*$/.test(value)) {
+                return 'Name must start with a letter and contain only letters, numbers, hyphens, and underscores';
+            }
+        }
+
+        return undefined;
+    }
+
+    hasFieldError(key: string): boolean {
+        return this.getFieldError(key) !== null;
     }
 }

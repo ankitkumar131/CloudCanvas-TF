@@ -10,12 +10,64 @@
                 (ngModelChange)="graphState.projectName.set($event)" placeholder="Project Name"
                 aria-label="Project name" />
         </div>
-        <span class="top-bar__save-status" [class.dirty]="graphState.isDirty()">
+        <span class="top-bar__save-status" 
+              [class.dirty]="graphState.isDirty()" 
+              [class.saving]="isSaving()"
+              [class.error]="saveError()">
             {{ saveStatus }}
         </span>
     </div>
 
+    <div class="top-bar__center">
+        <div class="search-container">
+            <span class="search-icon">🔍</span>
+            <input type="text" 
+                   class="search-input" 
+                   placeholder="Search nodes... (Ctrl+F)" 
+                   [value]="searchQuery()"
+                   (input)="onSearchInput($any($event.target).value)"
+                   (focus)="onSearchFocus()"
+                   aria-label="Search nodes" />
+            @if (searchQuery()) {
+            <button class="search-clear" (click)="closeSearch()" aria-label="Clear search">×</button>
+            }
+            @if (showSearchResults() && searchResults().length > 0) {
+            <div class="search-results">
+                @for (node of searchResults(); track node.id) {
+                <button class="search-result-item" (click)="selectSearchResult(node)">
+                    <span class="search-result-name">{{ node.name }}</span>
+                    <span class="search-result-kind">{{ node.kind.replace('google_', '') }}</span>
+                </button>
+                }
+            </div>
+            }
+            @if (showSearchResults() && searchQuery() && searchResults().length === 0) {
+            <div class="search-results search-results--empty">
+                <span>No nodes found</span>
+            </div>
+            }
+        </div>
+    </div>
+
     <div class="top-bar__actions">
+        <!-- Undo/Redo -->
+        <button class="btn btn--ghost" 
+                (click)="undo()" 
+                title="Undo (Ctrl+Z)" 
+                aria-label="Undo"
+                [disabled]="!graphState.canUndo()">
+            <span class="btn__icon">↩️</span>
+        </button>
+        <button class="btn btn--ghost" 
+                (click)="redo()" 
+                title="Redo (Ctrl+Y)" 
+                aria-label="Redo"
+                [disabled]="!graphState.canRedo()">
+            <span class="btn__icon">↪️</span>
+        </button>
+
+        <span class="top-bar__divider"></span>
+
         <button class="btn btn--ghost" (click)="newProject()" title="New Project" aria-label="New Project">
             <span class="btn__icon">📄</span>
             <span class="btn__label">New</span>
@@ -24,20 +76,29 @@
             <span class="btn__icon">📂</span>
             <span class="btn__label">Import</span>
         </button>
-        <button class="btn btn--ghost" (click)="saveProject()" title="Save Project" aria-label="Save Project">
-            <span class="btn__icon">💾</span>
-            <span class="btn__label">Save</span>
+        <button class="btn btn--ghost" 
+                (click)="saveProject()" 
+                title="Save Project (Ctrl+S)" 
+                aria-label="Save Project"
+                [disabled]="isSaving()">
+            <span class="btn__icon">{{ isSaving() ? '⏳' : '💾' }}</span>
+            <span class="btn__label">{{ isSaving() ? 'Saving...' : 'Save' }}</span>
         </button>
 
         <div class="top-bar__export-group">
-            <button class="btn btn--primary" (click)="toggleExportMenu()" title="Export" aria-label="Export"
-                aria-haspopup="menu" [attr.aria-expanded]="showExportMenu">
+            <button class="btn btn--primary" (click)="toggleExportMenu($event)" title="Export" aria-label="Export"
+                aria-haspopup="menu" [attr.aria-expanded]="showExportMenu()">
                 <span class="btn__icon">📦</span>
                 <span class="btn__label">Export</span>
                 <span class="btn__caret">▾</span>
             </button>
-            @if (showExportMenu) {
+            @if (showExportMenu()) {
             <div class="export-menu" role="menu">
+                <button class="export-menu__item" (click)="saveAs()" role="menuitem">
+                    <span class="export-menu__icon">💾</span>
+                    Save As...
+                </button>
+                <div class="export-menu__divider"></div>
                 <button class="export-menu__item" (click)="exportTerraform()" role="menuitem">
                     <span class="export-menu__icon">📋</span>
                     Terraform ZIP

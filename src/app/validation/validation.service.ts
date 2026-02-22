@@ -64,17 +64,41 @@ export class ValidationService {
             }
         }
 
-        const names = new Map<string, string>();
+        // Check for duplicate names - Terraform requires globally unique resource names
+        // within the same type, but we'll warn on any duplicate name for clarity
+        const namesByKind = new Map<string, Map<string, string>>();
+        const allNames = new Map<string, { kind: string; id: string }>();
+        
         for (const node of graph.nodes) {
-            const key = `${node.kind}:${node.name}`;
-            if (names.has(key)) {
+            // Check for duplicate names within the same resource type (error)
+            const kindKey = `${node.kind}:${node.name}`;
+            if (!namesByKind.has(node.kind)) {
+                namesByKind.set(node.kind, new Map());
+            }
+            const kindNames = namesByKind.get(node.kind)!;
+            
+            if (kindNames.has(node.name)) {
                 diags.push({
-                    severity: 'error', code: 'DUPLICATE_NAME', nodeId: node.id,
+                    severity: 'error', 
+                    code: 'DUPLICATE_NAME', 
+                    nodeId: node.id,
                     message: `Duplicate resource name "${node.name}" for type ${node.kind}`,
                     remediation: 'Each resource of the same type must have a unique name.',
                 });
             }
-            names.set(key, node.id);
+            kindNames.set(node.name, node.id);
+            
+            // Check for duplicate names across different types (warning)
+            if (allNames.has(node.name) && allNames.get(node.name)!.kind !== node.kind) {
+                diags.push({
+                    severity: 'warning',
+                    code: 'DUPLICATE_NAME_CROSS_TYPE',
+                    nodeId: node.id,
+                    message: `Name "${node.name}" is also used by a ${allNames.get(node.name)!.kind} resource`,
+                    remediation: 'Consider using unique names across all resources to avoid confusion.',
+                });
+            }
+            allNames.set(node.name, { kind: node.kind, id: node.id });
         }
 
         return diags;
