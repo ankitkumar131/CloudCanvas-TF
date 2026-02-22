@@ -138,7 +138,6 @@
 
 .node-connector-bar {
     fill: var(--accent-primary, #6366f1);
-    rx: 3;
     transition: fill 0.15s, height 0.15s;
 
     .node-connector-group:hover & {

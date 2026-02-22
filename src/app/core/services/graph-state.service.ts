@@ -31,6 +31,10 @@ export class GraphStateService {
     readonly canUndo = this.history.canUndo;
     readonly canRedo = this.history.canRedo;
 
+    // Debounce timer for property update history pushes
+    private propertyUpdateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private readonly PROPERTY_DEBOUNCE_MS = 500;
+
     readonly selectedNode = computed<InfraNode | null>(() => {
         const id = this.selectedNodeId();
         if (!id) return null;
@@ -89,8 +93,16 @@ export class GraphStateService {
     }
 
     updateNodeProperties(nodeId: string, properties: Record<string, unknown>): void {
-        // Save current state for undo (debounced to avoid too many entries)
-        this.history.pushState(this.graph(), 'Update Properties');
+        // Debounce history push to avoid a new entry for every keystroke
+        if (this.propertyUpdateDebounceTimer !== null) {
+            clearTimeout(this.propertyUpdateDebounceTimer);
+        } else {
+            // Only push the state before the first change in this burst
+            this.history.pushState(this.graph(), 'Update Properties');
+        }
+        this.propertyUpdateDebounceTimer = setTimeout(() => {
+            this.propertyUpdateDebounceTimer = null;
+        }, this.PROPERTY_DEBOUNCE_MS);
         
         this.graph.update((g) => ({
             ...g,
@@ -169,17 +181,16 @@ export class GraphStateService {
     // Multi-select operations
     toggleNodeSelection(nodeId: string, addToSelection: boolean): void {
         if (addToSelection) {
-            this.selectedNodeIds.update(set => {
-                const newSet = new Set(set);
-                if (newSet.has(nodeId)) {
-                    newSet.delete(nodeId);
-                } else {
-                    newSet.add(nodeId);
-                }
-                // Update single selection to last toggled
-                this.selectedNodeId.set(newSet.size > 0 ? nodeId : null);
-                return newSet;
-            });
+            const currentSet = this.selectedNodeIds();
+            const newSet = new Set(currentSet);
+            if (newSet.has(nodeId)) {
+                newSet.delete(nodeId);
+            } else {
+                newSet.add(nodeId);
+            }
+            this.selectedNodeIds.set(newSet);
+            // Update single selection to last toggled
+            this.selectedNodeId.set(newSet.size > 0 ? nodeId : null);
         } else {
             this.selectedNodeId.set(nodeId);
             this.selectedNodeIds.set(new Set([nodeId]));
@@ -276,8 +287,8 @@ export class GraphStateService {
         }
 
         // Create new edges with mapped IDs
-        const newEdges: InfraEdge[] = clipboard.edges.map(edge => ({
-            id: `edge_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        const newEdges: InfraEdge[] = clipboard.edges.map((edge, idx) => ({
+            id: `edge_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 9)}`,
             from: idMapping.get(edge.from)!,
             to: idMapping.get(edge.to)!,
             relationship: edge.relationship,
@@ -300,6 +311,7 @@ export class GraphStateService {
         this.history.clear();
         this.graph.set(graph);
         this.selectedNodeId.set(null);
+        this.selectedNodeIds.set(new Set());
         this.isDirty.set(false);
     }
 
@@ -307,6 +319,7 @@ export class GraphStateService {
         this.history.clear();
         this.graph.set({ nodes: [], edges: [] });
         this.selectedNodeId.set(null);
+        this.selectedNodeIds.set(new Set());
         this.diagnostics.set([]);
         this.generatedFiles.set([]);
         this.isDirty.set(false);
