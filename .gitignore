@@ -3,3 +3,5 @@
 /out-tsc
 /node_modules
 /.angular
+/.vscode
+/.node_modules

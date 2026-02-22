@@ -115,6 +115,24 @@
             stroke: #22c55e !important;
             stroke-width: 2.5;
         }
+
+        &.edge-target-invalid {
+            cursor: not-allowed !important;
+            
+            .node-body {
+                stroke: #ef4444 !important;
+                stroke-width: 2.5;
+            }
+        }
+    }
+
+    // Multi-select indicator
+    &.multi-selected {
+        .node-glow {
+            stroke: #22c55e;
+            stroke-width: 2;
+            opacity: 0.6;
+        }
     }
 }
 
@@ -171,6 +189,24 @@
     stroke-dasharray: 4 4;
     opacity: 0.6;
     animation: targetPulse 1s ease-in-out infinite;
+
+    &.edge-target-valid {
+        stroke: #22c55e;
+    }
+
+    &.edge-target-invalid {
+        stroke: #ef4444;
+        animation: invalidPulse 0.5s ease-in-out infinite;
+    }
+}
+
+@keyframes invalidPulse {
+    0%, 100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 0.9;
+    }
 }
 
 @keyframes targetPulse {
@@ -302,4 +338,65 @@
         opacity: 1;
         transform: translate(-50%, -50%);
     }
+}
+
+// Zoom Controls
+.canvas-controls {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-elevated, rgba(26, 26, 46, 0.95));
+    border-radius: 8px;
+    padding: 6px 8px;
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-color, #2d2d44);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+}
+
+.canvas-controls__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #a0a0b8);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+
+    &:hover {
+        background: var(--bg-hover, rgba(99, 102, 241, 0.15));
+        color: var(--text-primary, #e8e8f0);
+    }
+
+    &:active {
+        background: var(--bg-active, rgba(99, 102, 241, 0.25));
+    }
+
+    &--text {
+        width: auto;
+        padding: 0 10px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+}
+
+.canvas-controls__zoom {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary, #a0a0b8);
+    min-width: 45px;
+    text-align: center;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 0 4px;
 }

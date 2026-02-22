@@ -1,7 +1,7 @@
-import { Component, inject, signal, computed, ElementRef, viewChild } from '@angular/core';
+import { Component, inject, signal, computed, ElementRef, viewChild, DestroyRef, HostListener } from '@angular/core';
 import { GraphStateService } from '../core/services/graph-state.service';
 import { PluginRegistryService } from '../infra/plugin-registry.service';
-import { InfraNode, RESOURCE_ICONS } from '../core/models/infra-graph.model';
+import { InfraNode, RESOURCE_ICONS, EdgeRelationship } from '../core/models/infra-graph.model';
 
 @Component({
     selector: 'app-canvas',
@@ -12,6 +12,7 @@ import { InfraNode, RESOURCE_ICONS } from '../core/models/infra-graph.model';
 export class CanvasComponent {
     graphState = inject(GraphStateService);
     private registry = inject(PluginRegistryService);
+    private destroyRef = inject(DestroyRef);
 
     private svgRef = viewChild<ElementRef<SVGSVGElement>>('svgCanvas');
 
@@ -30,6 +31,13 @@ export class CanvasComponent {
 
     // Track if we've handled interaction (prevent canvas click from deselecting)
     private nodeInteracted = false;
+    
+    // Multi-drag state - tracks initial positions of all dragged nodes
+    private multiDragStartPositions = new Map<string, { x: number; y: number }>();
+
+    // Track active event listeners for cleanup
+    private activeMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+    private activeMouseUpHandler: (() => void) | null = null;
 
     nodes = computed(() => this.graphState.graph().nodes);
     edges = computed(() => this.graphState.graph().edges);
@@ -41,9 +49,117 @@ export class CanvasComponent {
     });
 
     isEmpty = computed(() => this.nodes().length === 0);
+    
+    // Zoom percentage for display
+    zoomPercent = computed(() => {
+        const baseWidth = 1600;
+        return Math.round((baseWidth / this.viewBox().w) * 100);
+    });
 
     readonly NODE_WIDTH = 200;
     readonly NODE_HEIGHT = 72;
+
+    constructor() {
+        // Cleanup event listeners on destroy
+        this.destroyRef.onDestroy(() => {
+            this.cleanupDragListeners();
+        });
+    }
+
+    private cleanupDragListeners(): void {
+        if (this.activeMouseMoveHandler) {
+            window.removeEventListener('mousemove', this.activeMouseMoveHandler);
+            this.activeMouseMoveHandler = null;
+        }
+        if (this.activeMouseUpHandler) {
+            window.removeEventListener('mouseup', this.activeMouseUpHandler);
+            this.activeMouseUpHandler = null;
+        }
+    }
+
+    // Keyboard shortcuts
+    @HostListener('document:keydown', ['$event'])
+    onKeydown(event: KeyboardEvent): void {
+        // Delete selected nodes (supports multi-select)
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+            const selectedIds = this.graphState.selectedNodeIds();
+            if (selectedIds.size > 0 && !this.isInputFocused()) {
+                event.preventDefault();
+                this.graphState.removeNodes([...selectedIds]);
+            }
+        }
+        
+        // Escape to cancel edge drawing or deselect
+        if (event.key === 'Escape') {
+            if (this.isDrawingEdge()) {
+                this.isDrawingEdge.set(false);
+                this.edgeStartNodeId.set(null);
+            } else {
+                this.graphState.clearSelection();
+            }
+        }
+
+        // Ctrl+A to select all nodes
+        if ((event.ctrlKey || event.metaKey) && event.key === 'a' && !this.isInputFocused()) {
+            event.preventDefault();
+            const nodes = this.nodes();
+            if (nodes.length > 0) {
+                this.graphState.selectMultipleNodes(nodes.map(n => n.id));
+            }
+        }
+
+        // Ctrl+C to copy selected nodes
+        if ((event.ctrlKey || event.metaKey) && event.key === 'c' && !this.isInputFocused()) {
+            event.preventDefault();
+            this.graphState.copySelectedNodes();
+        }
+
+        // Ctrl+V to paste nodes
+        if ((event.ctrlKey || event.metaKey) && event.key === 'v' && !this.isInputFocused()) {
+            event.preventDefault();
+            this.graphState.pasteNodes();
+        }
+
+        // Ctrl+D to duplicate selected nodes
+        if ((event.ctrlKey || event.metaKey) && event.key === 'd' && !this.isInputFocused()) {
+            event.preventDefault();
+            this.graphState.copySelectedNodes();
+            this.graphState.pasteNodes();
+        }
+
+        // Arrow keys to nudge selected nodes
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+            const selectedIds = this.graphState.selectedNodeIds();
+            if (selectedIds.size > 0 && !this.isInputFocused()) {
+                event.preventDefault();
+                const step = event.shiftKey ? 20 : 5;
+                let dx = 0, dy = 0;
+                if (event.key === 'ArrowUp') dy = -step;
+                if (event.key === 'ArrowDown') dy = step;
+                if (event.key === 'ArrowLeft') dx = -step;
+                if (event.key === 'ArrowRight') dx = step;
+                
+                const updates = [...selectedIds].map(nodeId => {
+                    const node = this.nodeMap().get(nodeId);
+                    return node ? {
+                        nodeId,
+                        position: { x: node.position.x + dx, y: node.position.y + dy }
+                    } : null;
+                }).filter((u): u is NonNullable<typeof u> => u !== null);
+                
+                if (updates.length > 0) {
+                    this.graphState.updateMultipleNodePositions(updates);
+                }
+            }
+        }
+    }
+
+    private isInputFocused(): boolean {
+        const active = document.activeElement;
+        return active instanceof HTMLInputElement || 
+               active instanceof HTMLTextAreaElement || 
+               active instanceof HTMLSelectElement;
+    }
 
     getIcon(node: InfraNode): string {
         return RESOURCE_ICONS[node.kind] ?? '📦';
@@ -55,7 +171,11 @@ export class CanvasComponent {
     }
 
     isSelected(node: InfraNode): boolean {
-        return this.graphState.selectedNodeId() === node.id;
+        return this.graphState.selectedNodeIds().has(node.id);
+    }
+
+    isMultiSelected(): boolean {
+        return this.graphState.selectedNodeIds().size > 1;
     }
 
     hasError(node: InfraNode): boolean {
@@ -108,11 +228,16 @@ export class CanvasComponent {
         event.stopPropagation();
         this.nodeInteracted = true;
 
-        // If drawing an edge, complete it
+        // If drawing an edge, complete it with proper relationship and validation
         if (this.isDrawingEdge() && this.edgeStartNodeId()) {
             const from = this.edgeStartNodeId()!;
             if (from !== node.id) {
-                this.graphState.addEdge(from, node.id, 'depends_on');
+                // Validate connection before creating
+                const validationResult = this.validateEdgeConnection(from, node.id);
+                if (validationResult.valid) {
+                    this.graphState.addEdge(from, node.id, validationResult.relationship);
+                }
+                // If invalid, just cancel without creating edge
             }
             this.isDrawingEdge.set(false);
             this.edgeStartNodeId.set(null);
@@ -120,8 +245,13 @@ export class CanvasComponent {
             return;
         }
 
-        // Normal select
-        this.graphState.selectNode(node.id);
+        // Multi-select with Shift or Ctrl/Cmd
+        if (event.shiftKey || event.ctrlKey || event.metaKey) {
+            this.graphState.toggleNodeSelection(node.id, true);
+        } else {
+            // Normal select (clears multi-selection)
+            this.graphState.selectNode(node.id);
+        }
     }
 
     // ========== NODE DRAG (mousedown) ==========
@@ -132,23 +262,79 @@ export class CanvasComponent {
         if (event.button !== 0) return;
 
         event.preventDefault();
-        this.graphState.selectNode(node.id);
+        
+        // Handle selection logic
+        const selectedIds = this.graphState.selectedNodeIds();
+        const isAlreadySelected = selectedIds.has(node.id);
+        
+        // If clicking on unselected node without modifier, select only it
+        if (!isAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+            this.graphState.selectNode(node.id);
+        } else if (!isAlreadySelected) {
+            // Add to selection with modifier
+            this.graphState.toggleNodeSelection(node.id, true);
+        }
+        // If already selected, keep current selection (for multi-drag)
+
         this.draggingNodeId.set(node.id);
         const pt = this.screenToSvg(event.clientX, event.clientY);
         this.dragOffset.set({ x: pt.x - node.position.x, y: pt.y - node.position.y });
 
+        // Store initial positions of all selected nodes for multi-drag
+        this.multiDragStartPositions.clear();
+        const currentSelectedIds = this.graphState.selectedNodeIds();
+        for (const nodeId of currentSelectedIds) {
+            const n = this.nodeMap().get(nodeId);
+            if (n) {
+                this.multiDragStartPositions.set(nodeId, { ...n.position });
+            }
+        }
+
+        // Clean up any existing listeners first
+        this.cleanupDragListeners();
+
         const onMove = (e: MouseEvent): void => {
             const mvPt = this.screenToSvg(e.clientX, e.clientY);
-            this.graphState.updateNodePosition(node.id, {
-                x: mvPt.x - this.dragOffset().x,
-                y: mvPt.y - this.dragOffset().y,
-            });
+            const currentSelectedIds = this.graphState.selectedNodeIds();
+            
+            // Calculate delta from dragged node's starting position
+            const startPos = this.multiDragStartPositions.get(node.id);
+            if (!startPos) return;
+            
+            const dx = mvPt.x - this.dragOffset().x - startPos.x;
+            const dy = mvPt.y - this.dragOffset().y - startPos.y;
+            
+            // Update all selected nodes
+            if (currentSelectedIds.size > 1) {
+                const updates = [...currentSelectedIds].map(nodeId => {
+                    const originalPos = this.multiDragStartPositions.get(nodeId);
+                    if (!originalPos) return null;
+                    return {
+                        nodeId,
+                        position: {
+                            x: originalPos.x + dx,
+                            y: originalPos.y + dy,
+                        },
+                    };
+                }).filter((u): u is NonNullable<typeof u> => u !== null);
+                
+                this.graphState.updateMultipleNodePositions(updates);
+            } else {
+                // Single node drag
+                this.graphState.updateNodePosition(node.id, {
+                    x: mvPt.x - this.dragOffset().x,
+                    y: mvPt.y - this.dragOffset().y,
+                });
+            }
         };
         const onUp = (): void => {
             this.draggingNodeId.set(null);
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
+            this.multiDragStartPositions.clear();
+            this.cleanupDragListeners();
         };
+
+        this.activeMouseMoveHandler = onMove;
+        this.activeMouseUpHandler = onUp;
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
     }
@@ -281,5 +467,135 @@ export class CanvasComponent {
 
     private getContainerHeight(): number {
         return this.svgRef()?.nativeElement.clientHeight ?? 600;
+    }
+
+    // ========== ZOOM CONTROLS ==========
+    zoomIn(): void {
+        this.viewBox.update((vb) => {
+            const centerX = vb.x + vb.w / 2;
+            const centerY = vb.y + vb.h / 2;
+            const scale = 0.8;
+            return {
+                x: centerX - (vb.w * scale) / 2,
+                y: centerY - (vb.h * scale) / 2,
+                w: vb.w * scale,
+                h: vb.h * scale,
+            };
+        });
+    }
+
+    zoomOut(): void {
+        this.viewBox.update((vb) => {
+            const centerX = vb.x + vb.w / 2;
+            const centerY = vb.y + vb.h / 2;
+            const scale = 1.25;
+            return {
+                x: centerX - (vb.w * scale) / 2,
+                y: centerY - (vb.h * scale) / 2,
+                w: vb.w * scale,
+                h: vb.h * scale,
+            };
+        });
+    }
+
+    resetZoom(): void {
+        this.viewBox.set({ x: 0, y: 0, w: 1600, h: 900 });
+    }
+
+    fitToView(): void {
+        const nodes = this.nodes();
+        if (nodes.length === 0) {
+            this.resetZoom();
+            return;
+        }
+
+        const padding = 100;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        for (const node of nodes) {
+            minX = Math.min(minX, node.position.x);
+            minY = Math.min(minY, node.position.y);
+            maxX = Math.max(maxX, node.position.x + this.NODE_WIDTH);
+            maxY = Math.max(maxY, node.position.y + this.NODE_HEIGHT);
+        }
+
+        const contentWidth = maxX - minX + padding * 2;
+        const contentHeight = maxY - minY + padding * 2;
+        
+        // Maintain aspect ratio
+        const containerWidth = this.getContainerWidth();
+        const containerHeight = this.getContainerHeight();
+        const aspectRatio = containerWidth / containerHeight;
+        
+        let viewW = contentWidth;
+        let viewH = contentHeight;
+        
+        if (viewW / viewH > aspectRatio) {
+            viewH = viewW / aspectRatio;
+        } else {
+            viewW = viewH * aspectRatio;
+        }
+
+        this.viewBox.set({
+            x: minX - padding - (viewW - contentWidth) / 2,
+            y: minY - padding - (viewH - contentHeight) / 2,
+            w: viewW,
+            h: viewH,
+        });
+    }
+
+    // Validate edge connection and get appropriate relationship
+    validateEdgeConnection(fromId: string, toId: string): { valid: boolean; relationship: EdgeRelationship; reason?: string } {
+        const fromNode = this.nodeMap().get(fromId);
+        const toNode = this.nodeMap().get(toId);
+        
+        if (!fromNode || !toNode) {
+            return { valid: false, relationship: 'depends_on', reason: 'Node not found' };
+        }
+
+        // Prevent self-connections
+        if (fromId === toId) {
+            return { valid: false, relationship: 'depends_on', reason: 'Cannot connect to self' };
+        }
+
+        // Check for existing edge
+        const existingEdge = this.edges().find(e => e.from === fromId && e.to === toId);
+        if (existingEdge) {
+            return { valid: false, relationship: 'depends_on', reason: 'Connection already exists' };
+        }
+
+        // Check for reverse edge (circular dependency)
+        const reverseEdge = this.edges().find(e => e.from === toId && e.to === fromId);
+        if (reverseEdge) {
+            return { valid: false, relationship: 'depends_on', reason: 'Would create circular dependency' };
+        }
+
+        // Get suggestions from source plugin for relationship type
+        const fromPlugin = this.registry.getPlugin(fromNode.kind);
+        if (fromPlugin?.suggestEdges) {
+            const suggestions = fromPlugin.suggestEdges(fromNode, this.graphState.graph());
+            const matchingSuggestion = suggestions.find(s => s.targetKind === toNode.kind);
+            if (matchingSuggestion) {
+                return { valid: true, relationship: matchingSuggestion.relationship };
+            }
+        }
+
+        // Default to depends_on for any valid connection
+        return { valid: true, relationship: 'depends_on' };
+    }
+
+    // Check if a potential target is valid during edge drawing
+    isValidDropTarget(targetNodeId: string): boolean {
+        const startNodeId = this.edgeStartNodeId();
+        if (!startNodeId || !this.isDrawingEdge()) return false;
+        
+        const validation = this.validateEdgeConnection(startNodeId, targetNodeId);
+        return validation.valid;
+    }
+
+    // Get valid edge relationship based on source and target nodes (deprecated, use validateEdgeConnection)
+    getValidRelationship(fromId: string, toId: string): EdgeRelationship {
+        const result = this.validateEdgeConnection(fromId, toId);
+        return result.relationship;
     }
 }

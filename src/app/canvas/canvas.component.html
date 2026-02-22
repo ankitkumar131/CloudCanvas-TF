@@ -33,7 +33,7 @@
                 marker-end="url(#arrowhead)" pointer-events="none" />
             <!-- Edge label -->
             <text class="edge-label" [attr.x]="getEdgeMidpoint(edge.from, edge.to).x + 10"
-                [attr.y]="getEdgeMidpoint(edge.from, edge.to).y" font-size="10" fill="#818cf8">depends_on</text>
+                [attr.y]="getEdgeMidpoint(edge.from, edge.to).y" font-size="10" fill="#818cf8">{{ edge.relationship }}</text>
         </g>
         }
 
@@ -48,9 +48,11 @@
 
         <!-- Nodes -->
         @for (node of nodes(); track node.id) {
-        <g class="node-group" [class.selected]="isSelected(node)" [class.has-error]="hasError(node)"
+        <g class="node-group" [class.selected]="isSelected(node)" [class.multi-selected]="isMultiSelected() && isSelected(node)" [class.has-error]="hasError(node)"
             [class.has-warning]="hasWarning(node)"
             [class.edge-target]="isDrawingEdge() && edgeStartNodeId() !== node.id"
+            [class.edge-target-valid]="isDrawingEdge() && edgeStartNodeId() !== node.id && isValidDropTarget(node.id)"
+            [class.edge-target-invalid]="isDrawingEdge() && edgeStartNodeId() !== node.id && !isValidDropTarget(node.id)"
             [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'"
             (click)="onNodeClick($event, node)" (mousedown)="onNodeMouseDown($event, node)">
             <!-- Hit area (slightly larger than visible body for easier clicking) -->
@@ -66,7 +68,9 @@
             }
             <!-- Edge target highlight when drawing edge -->
             @if (isDrawingEdge() && edgeStartNodeId() !== node.id) {
-            <rect class="edge-target-glow" [attr.width]="NODE_WIDTH + 6" [attr.height]="NODE_HEIGHT + 6" x="-3" y="-3"
+            <rect class="edge-target-glow" [class.edge-target-valid]="isValidDropTarget(node.id)" 
+                [class.edge-target-invalid]="!isValidDropTarget(node.id)"
+                [attr.width]="NODE_WIDTH + 6" [attr.height]="NODE_HEIGHT + 6" x="-3" y="-3"
                 rx="15" ry="15" />
             }
             <!-- Icon -->
@@ -114,10 +118,29 @@
         <h3 class="canvas-empty__title">Design Your Infrastructure</h3>
         <p class="canvas-empty__text">Click resources in the palette to add them to the canvas</p>
         <div class="canvas-empty__hint">
-            <span>🖱️ Click node to select · drag to move</span>
-            <span>🔗 Click the bottom bar, then click a target node to connect</span>
+            <span>🖱️ Click node to select · Shift/Ctrl+click for multi-select</span>
+            <span>🔗 Drag bottom bar to connect · edges auto-validate</span>
             <span>🖱️ Ctrl+drag or middle-click to pan · scroll to zoom</span>
+            <span>⌨️ Ctrl+C/V copy/paste · Ctrl+D duplicate · Delete to remove</span>
+            <span>⌨️ Ctrl+A select all · Arrow keys to nudge</span>
         </div>
     </div>
     }
+
+    <!-- Zoom Controls -->
+    <div class="canvas-controls">
+        <button class="canvas-controls__btn" (click)="zoomIn()" title="Zoom In">
+            <span>+</span>
+        </button>
+        <span class="canvas-controls__zoom">{{ zoomPercent() }}%</span>
+        <button class="canvas-controls__btn" (click)="zoomOut()" title="Zoom Out">
+            <span>−</span>
+        </button>
+        <button class="canvas-controls__btn canvas-controls__btn--text" (click)="resetZoom()" title="Reset Zoom">
+            <span>Reset</span>
+        </button>
+        <button class="canvas-controls__btn canvas-controls__btn--text" (click)="fitToView()" title="Fit to View">
+            <span>Fit</span>
+        </button>
+    </div>
 </div>
