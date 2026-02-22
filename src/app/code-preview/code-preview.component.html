@@ -1,0 +1,32 @@
+<div class="code-preview">
+    <div class="code-preview__tabs">
+        <div class="code-preview__tab-list" role="tablist">
+            @for (file of files(); track file.filename; let i = $index) {
+            <button class="code-preview__tab" [class.active]="activeTab() === i" (click)="setActiveTab(i)" role="tab"
+                [attr.aria-selected]="activeTab() === i">
+                <span class="code-preview__tab-icon">📄</span>
+                {{ file.filename }}
+            </button>
+            }
+        </div>
+        <div class="code-preview__actions">
+            @if (copyFeedback()) {
+            <span class="code-preview__feedback">{{ copyFeedback() }}</span>
+            }
+            <button class="code-preview__copy" (click)="copyToClipboard()" title="Copy to clipboard"
+                aria-label="Copy code">
+                📋 Copy
+            </button>
+        </div>
+    </div>
+
+    @if (activeFile(); as file) {
+    <div class="code-preview__content">
+        <pre class="code-preview__code"><code [innerHTML]="file.content | hclHighlight"></code></pre>
+    </div>
+    } @else {
+    <div class="code-preview__empty">
+        <p>Add resources to generate Terraform code</p>
+    </div>
+    }
+</div>

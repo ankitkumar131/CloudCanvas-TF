@@ -1,0 +1,86 @@
+<div class="inspector">
+    @if (selectedNode(); as node) {
+    <div class="inspector__header">
+        <span class="inspector__icon">{{ icon() }}</span>
+        <div class="inspector__title-block">
+            <input type="text" class="inspector__name-input" [ngModel]="node.name"
+                (ngModelChange)="onNameChange($event)" aria-label="Resource name" />
+            <span class="inspector__kind">{{ displayName() }}</span>
+        </div>
+    </div>
+
+    @if (nodeDiagnostics().length > 0) {
+    <div class="inspector__diagnostics">
+        @for (diag of nodeDiagnostics(); track diag.code + (diag.field ?? '')) {
+        <div class="inspector__diag" [class]="'inspector__diag--' + diag.severity">
+            <span class="inspector__diag-icon">
+                @if (diag.severity === 'error') { ❌ }
+                @else if (diag.severity === 'warning') { ⚠️ }
+                @else { ℹ️ }
+            </span>
+            <span class="inspector__diag-msg">{{ diag.message }}</span>
+        </div>
+        }
+    </div>
+    }
+
+    <div class="inspector__form">
+        @for (group of groups(); track group.name) {
+        <div class="inspector__group">
+            <div class="inspector__group-header">{{ group.name }}</div>
+            @for (field of group.fields; track field.key) {
+            <div class="inspector__field" [class.has-error]="getFieldError(field.key)">
+                <label class="inspector__label" [for]="'field-' + field.key">
+                    {{ field.config.label }}
+                    @if (field.config.required) {
+                    <span class="inspector__required">*</span>
+                    }
+                </label>
+
+                @if (field.config.description) {
+                <p class="inspector__description">{{ field.config.description }}</p>
+                }
+
+                @if (field.config.type === 'string') {
+                <input type="text" class="inspector__input" [id]="'field-' + field.key" [ngModel]="field.value"
+                    (ngModelChange)="onFieldChange(field.key, $event)" [placeholder]="field.config.placeholder ?? ''" />
+                }
+
+                @if (field.config.type === 'number') {
+                <input type="number" class="inspector__input" [id]="'field-' + field.key" [value]="field.value"
+                    (change)="onNumberChange(field.key, $event)" [placeholder]="field.config.placeholder ?? ''" />
+                }
+
+                @if (field.config.type === 'boolean') {
+                <label class="inspector__toggle">
+                    <input type="checkbox" [id]="'field-' + field.key" [checked]="!!field.value"
+                        (change)="onBooleanChange(field.key, $event)" />
+                    <span class="inspector__toggle-slider"></span>
+                    <span class="inspector__toggle-label">{{ field.value ? 'Enabled' : 'Disabled' }}</span>
+                </label>
+                }
+
+                @if (field.config.type === 'select') {
+                <select class="inspector__select" [id]="'field-' + field.key" [ngModel]="field.value"
+                    (ngModelChange)="onFieldChange(field.key, $event)">
+                    @for (opt of field.config.options ?? []; track opt) {
+                    <option [value]="opt">{{ opt }}</option>
+                    }
+                </select>
+                }
+
+                @if (getFieldError(field.key); as error) {
+                <span class="inspector__error">{{ error }}</span>
+                }
+            </div>
+            }
+        </div>
+        }
+    </div>
+    } @else {
+    <div class="inspector__empty">
+        <span class="inspector__empty-icon">👆</span>
+        <p class="inspector__empty-text">Select a resource on the canvas to inspect and edit its properties</p>
+    </div>
+    }
+</div>

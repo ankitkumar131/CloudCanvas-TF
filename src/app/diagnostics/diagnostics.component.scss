@@ -1,0 +1,137 @@
+.diagnostics {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.diagnostics__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.diagnostics__title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    margin: 0;
+}
+
+.diagnostics__badges {
+    display: flex;
+    gap: 6px;
+}
+
+.diagnostics__badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+
+    &--error {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--color-error);
+    }
+
+    &--warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--color-warning);
+    }
+
+    &--ok {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--color-success, #22c55e);
+    }
+}
+
+.diagnostics__list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+}
+
+.diagnostics__item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    text-align: left;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: default;
+    transition: background 0.15s;
+
+    &.clickable {
+        cursor: pointer;
+
+        &:hover {
+            background: var(--bg-hover);
+        }
+    }
+
+    &--error {
+        border-left: 3px solid var(--color-error);
+    }
+
+    &--warning {
+        border-left: 3px solid var(--color-warning);
+    }
+
+    &--info {
+        border-left: 3px solid var(--accent-primary);
+    }
+}
+
+.diagnostics__item-icon {
+    flex-shrink: 0;
+    font-size: 12px;
+    margin-top: 1px;
+}
+
+.diagnostics__item-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.diagnostics__item-message {
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.diagnostics__item-fix {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    line-height: 1.3;
+}
+
+.diagnostics__item-code {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.6;
+}
+
+.diagnostics__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+
+    p {
+        font-size: 12px;
+        color: var(--text-tertiary);
+    }
+}

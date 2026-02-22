@@ -1,0 +1,305 @@
+.canvas-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background: var(--bg-canvas);
+    overflow: hidden;
+}
+
+.canvas-svg {
+    width: 100%;
+    height: 100%;
+    cursor: default;
+
+    &.panning {
+        cursor: grabbing;
+    }
+
+    &.drawing-edge {
+        cursor: crosshair;
+    }
+}
+
+// Edges
+.edge-group {
+    cursor: pointer;
+
+    &:hover path:not([stroke="transparent"]) {
+        stroke: #ef4444 !important;
+        stroke-width: 3;
+    }
+
+    &:hover .edge-label {
+        fill: #ef4444 !important;
+    }
+}
+
+.edge-label {
+    font-family: 'Inter', system-ui, sans-serif;
+    pointer-events: none;
+    user-select: none;
+}
+
+.edge-drawing {
+    pointer-events: none;
+}
+
+.edge-hint {
+    font-family: 'Inter', system-ui, sans-serif;
+    pointer-events: none;
+    user-select: none;
+    animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+// Nodes
+.node-group {
+    cursor: grab;
+
+    &:active {
+        cursor: grabbing;
+    }
+
+    .node-delete {
+        opacity: 0;
+        cursor: pointer;
+        transition: opacity 0.15s;
+    }
+
+    .node-connector-group {
+        cursor: crosshair;
+        opacity: 0.3;
+        transition: opacity 0.15s;
+    }
+
+    .node-connector-label {
+        fill: var(--text-tertiary, #6b6b8a);
+        opacity: 0;
+        transition: opacity 0.15s;
+        pointer-events: none;
+        font-family: 'Inter', system-ui, sans-serif;
+        user-select: none;
+    }
+
+    &:hover,
+    &.selected {
+        .node-delete {
+            opacity: 1;
+        }
+
+        .node-connector-group {
+            opacity: 1;
+        }
+
+        .node-connector-label {
+            opacity: 0.8;
+        }
+    }
+
+    // When another node is drawing an edge, highlight as target
+    &.edge-target {
+        cursor: pointer !important;
+
+        .node-body {
+            stroke: #22c55e !important;
+            stroke-width: 2.5;
+        }
+    }
+}
+
+.node-connector-bar {
+    fill: var(--accent-primary, #6366f1);
+    rx: 3;
+    transition: fill 0.15s, height 0.15s;
+
+    .node-connector-group:hover & {
+        fill: #818cf8;
+        height: 8px;
+    }
+}
+
+.node-delete-bg {
+    fill: var(--color-error, #ef4444);
+    opacity: 0.9;
+
+    &:hover {
+        fill: #dc2626;
+    }
+}
+
+.node-body {
+    fill: var(--bg-node, #1a1a2e);
+    stroke: var(--border-color, #2d2d44);
+    stroke-width: 1.5;
+    transition: stroke 0.15s, fill 0.15s;
+
+    .node-group:hover & {
+        stroke: var(--accent-primary, #6366f1);
+        fill: #1e1e36;
+    }
+
+    .node-group.selected & {
+        stroke: var(--accent-primary, #6366f1);
+        stroke-width: 2;
+        fill: #1e1e36;
+    }
+
+    .node-group.has-error & {
+        stroke: var(--color-error, #ef4444);
+    }
+
+    .node-group.has-warning & {
+        stroke: var(--color-warning, #f59e0b);
+    }
+}
+
+.edge-target-glow {
+    fill: none;
+    stroke: #22c55e;
+    stroke-width: 2;
+    stroke-dasharray: 4 4;
+    opacity: 0.6;
+    animation: targetPulse 1s ease-in-out infinite;
+}
+
+@keyframes targetPulse {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+.node-glow {
+    fill: none;
+    stroke: var(--accent-primary, #6366f1);
+    stroke-width: 1;
+    opacity: 0.4;
+}
+
+.node-icon,
+.node-name,
+.node-type {
+    pointer-events: none;
+    user-select: none;
+}
+
+.node-name {
+    fill: var(--text-primary, #e8e8f0);
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.node-type {
+    fill: var(--text-tertiary, #6b6b8a);
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+.node-status {
+    pointer-events: none;
+    animation: statusPulse 2s infinite;
+
+    &--error {
+        fill: var(--color-error, #ef4444);
+    }
+
+    &--warning {
+        fill: var(--color-warning, #f59e0b);
+    }
+}
+
+@keyframes statusPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+// Empty state
+.canvas-empty {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    animation: fadeIn 0.5s ease;
+}
+
+.canvas-empty__icon {
+    font-size: 56px;
+    margin-bottom: 12px;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.canvas-empty__title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+}
+
+.canvas-empty__text {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    margin: 0 0 20px;
+}
+
+.canvas-empty__hint {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    opacity: 0.7;
+
+    span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -45%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
